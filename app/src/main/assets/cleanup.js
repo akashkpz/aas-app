@@ -1,10 +1,25 @@
 (function () {
   if (window.__aasOn) return;
   window.__aasOn = true;
-  var t0 = Date.now(), revealed = false;
+  var t0 = Date.now(), revealed = false, hidden = [], cool = 0;
+  var KEEP = /Hey,|PYQ Bank/;
 
   function T(e) { return (e.textContent || '').replace(/\s+/g, ' ').trim(); }
-  function hide(e) { if (e && e.style) e.style.setProperty('display', 'none', 'important'); }
+  function BT() { return (document.body && document.body.innerText) || ''; }
+  function safe(e) {
+    return e && e.style && e !== document.body && e !== document.documentElement &&
+      e.parentElement !== document.body && !KEEP.test(T(e));
+  }
+  function hide(e) {
+    if (!safe(e)) return false;
+    e.style.setProperty('display', 'none', 'important');
+    if (hidden.indexOf(e) < 0) hidden.push(e);
+    return true;
+  }
+  function restore() {
+    for (var i = 0; i < hidden.length; i++) hidden[i].style.removeProperty('display');
+    hidden = [];
+  }
   function fixed(e) {
     while (e && e !== document.body) {
       var p = getComputedStyle(e).position;
@@ -44,25 +59,26 @@
     }
   }
   function toolbox() {
+    if (!/PYQ Bank/.test(BT())) return false;
     var r = smallest(/^Toolbox\b/, 60);
     if (!r.length) return false;
     var a = r[0];
     while (a.parentElement && a.parentElement !== document.body &&
-           !/PYQ Bank/.test(T(a.parentElement)) && !/Hey,/.test(T(a.parentElement))) a = a.parentElement;
-    hide(a);
+           !KEEP.test(T(a.parentElement))) a = a.parentElement;
+    if (!hide(a)) return false;
     hideAfter(a);
     return true;
   }
   function teacher() {
+    if (!/Hey,/.test(BT())) return false;
     var r = smallest(/^Teacher App$/, 20);
     if (!r.length) return false;
     var c = r[0];
     while (c.parentElement && c.parentElement !== document.body &&
            !/Hey,/.test(T(c.parentElement))) c = c.parentElement;
-    hide(c);
+    if (!hide(c)) return false;
     [c.nextElementSibling, c.previousElementSibling].forEach(function (s) {
-      if (s && T(s) === '' && !/Hey,/.test(T(s)) &&
-          (s.tagName === 'BUTTON' || s.querySelector('svg,img,button'))) hide(s);
+      if (s && T(s) === '' && (s.tagName === 'BUTTON' || s.querySelector('svg,img,button'))) hide(s);
     });
     return true;
   }
@@ -70,10 +86,9 @@
     var r = smallest(/^premium$/i, 12), ok = false;
     for (var i = 0; i < r.length; i++) {
       if (!fixed(r[i])) continue;
-      var c = r[i];
-      while (c.parentElement && c.parentElement !== document.body && !isNav(c.parentElement)) c = c.parentElement;
-      hide(c);
-      ok = true;
+      var c = r[i], n = 0;
+      while (c.parentElement && n < 5 && !isNav(c.parentElement)) { c = c.parentElement; n++; }
+      if (c.parentElement && isNav(c.parentElement) && !/Home/.test(T(c))) { hide(c); ok = true; }
     }
     return ok;
   }
@@ -87,8 +102,14 @@
   }
   function reveal() { revealed = true; document.documentElement.style.visibility = 'visible'; }
   function run() {
-    var a = toolbox(), b = teacher(), c = premium();
-    misc();
+    var a = false, b = false, c = false;
+    try {
+      if (Date.now() >= cool) {
+        a = toolbox(); b = teacher(); c = premium();
+        misc();
+        if (hidden.length && BT().trim().length < 30) { restore(); cool = Date.now() + 2000; }
+      }
+    } catch (e) {}
     if (!revealed && ((a && b && c) || Date.now() - t0 > 1500)) reveal();
   }
 

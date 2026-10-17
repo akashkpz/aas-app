@@ -6,13 +6,19 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
+import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 
 class MainActivity : Activity() {
     private lateinit var web: WebView
+    private lateinit var root: FrameLayout
+    private val popups = ArrayList<WebView>()
     private val h = Handler(Looper.getMainLooper())
     private val startUrl = "https://exambro.app/dashboard"
     private val blocked = listOf(
@@ -24,8 +30,10 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        root = FrameLayout(this)
         web = WebView(this)
-        setContentView(web)
+        root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        setContentView(root)
         val js = assets.open("cleanup.js").bufferedReader().use { it.readText() }
 
         CookieManager.getInstance().setAcceptCookie(true)
@@ -36,7 +44,35 @@ class MainActivity : Activity() {
             domStorageEnabled = true
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
+            setSupportMultipleWindows(true)
+            javaScriptCanOpenWindowsAutomatically = true
         }
+
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+                val pop = WebView(this@MainActivity)
+                pop.settings.javaScriptEnabled = true
+                pop.settings.domStorageEnabled = true
+                pop.settings.setSupportMultipleWindows(true)
+                pop.settings.javaScriptCanOpenWindowsAutomatically = true
+                pop.setBackgroundColor(0xFFFFFFFF.toInt())
+                CookieManager.getInstance().setAcceptThirdPartyCookies(pop, true)
+                pop.webViewClient = WebViewClient()
+                pop.webChromeClient = this
+                root.addView(pop, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                popups.add(pop)
+                val t = resultMsg.obj as WebView.WebViewTransport
+                t.webView = pop
+                resultMsg.sendToTarget()
+                return true
+            }
+            override fun onCloseWindow(window: WebView) {
+                root.removeView(window)
+                popups.remove(window)
+                window.destroy()
+            }
+        }
+
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
                 val scheme = r.url.scheme ?: ""
@@ -59,6 +95,10 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else super.onBackPressed()
+        if (popups.isNotEmpty()) {
+            val p = popups.removeAt(popups.size - 1)
+            root.removeView(p)
+            p.destroy()
+        } else if (web.canGoBack()) web.goBack() else super.onBackPressed()
     }
 }

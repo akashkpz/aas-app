@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -18,6 +19,7 @@ import android.widget.FrameLayout
 class MainActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var root: FrameLayout
+    private lateinit var urlMask: View 
     private val popups = ArrayList<WebView>()
     private val h = Handler(Looper.getMainLooper())
     private val startUrl = "https://exambro.app/dashboard"
@@ -33,6 +35,16 @@ class MainActivity : Activity() {
         root = FrameLayout(this)
         web = WebView(this)
         root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        
+        // --- THE ADVANCED HACK: NATIVE URL MASK ---
+        urlMask = View(this)
+        urlMask.setBackgroundColor(0xFF202124.toInt()) // Google dark mode background
+        val maskParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180) // 180 pixels tall
+        maskParams.gravity = android.view.Gravity.TOP
+        urlMask.visibility = View.GONE
+        root.addView(urlMask, maskParams)
+        // ------------------------------------------
+
         setContentView(root)
         val js = assets.open("cleanup.js").bufferedReader().use { it.readText() }
 
@@ -57,7 +69,25 @@ class MainActivity : Activity() {
                 pop.settings.javaScriptCanOpenWindowsAutomatically = true
                 pop.setBackgroundColor(0xFFFFFFFF.toInt())
                 CookieManager.getInstance().setAcceptThirdPartyCookies(pop, true)
-                pop.webViewClient = WebViewClient()
+                
+                // Activate the mask only for the Google Login popup
+                pop.webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
+                        super.onPageStarted(v, url, favicon)
+                        if (url != null && url.contains("accounts.google.com")) {
+                            urlMask.visibility = View.VISIBLE
+                            urlMask.bringToFront()
+                        } else {
+                            urlMask.visibility = View.GONE
+                        }
+                    }
+                    override fun onPageFinished(v: WebView?, url: String?) {
+                        super.onPageFinished(v, url)
+                        if (url != null && !url.contains("accounts.google.com")) {
+                            urlMask.visibility = View.GONE
+                        }
+                    }
+                }
                 pop.webChromeClient = this
                 root.addView(pop, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
                 popups.add(pop)
@@ -70,6 +100,7 @@ class MainActivity : Activity() {
                 root.removeView(window)
                 popups.remove(window)
                 window.destroy()
+                urlMask.visibility = View.GONE 
             }
         }
 
@@ -99,6 +130,7 @@ class MainActivity : Activity() {
             val p = popups.removeAt(popups.size - 1)
             root.removeView(p)
             p.destroy()
+            urlMask.visibility = View.GONE
         } else if (web.canGoBack()) web.goBack() else super.onBackPressed()
     }
 }

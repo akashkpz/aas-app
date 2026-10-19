@@ -61,7 +61,6 @@
     } else hide(s);
   }
 
-  /* ---------- dashboard: hide Toolbox..social, keep Join Online Mock Tests ---------- */
   function sweep(node, H, K) {
     for (var i = 0; i < node.children.length; i++) {
       var c = node.children[i];
@@ -93,7 +92,6 @@
     return true;
   }
 
-  /* ---------- bottom nav: Premium + Tests ---------- */
   function navItem(re) {
     var r = smallest(re, 12), ok = false;
     for (var i = 0; i < r.length; i++) {
@@ -105,7 +103,6 @@
     return ok;
   }
 
-  /* ---------- MHT CET page banner ---------- */
   function banner() {
     var t = smallest(/seeing free past-paper/i, 220);
     var b = smallest(/^Unlock\s*&\s*continue/i, 40);
@@ -114,7 +111,6 @@
     return !!(x && T(x).length < 500 && hide(x));
   }
 
-  /* ---------- profile page ---------- */
   function profile() {
     var ok = false;
     [/^Switch to Teacher$/, /^View My Purchases$/, /^Exam Info$/].forEach(function (re) {
@@ -143,7 +139,6 @@
     return ok;
   }
 
-  /* ---------- login page logo ---------- */
   function login() {
     if (!/Login with Google/i.test(BT())) return false;
     var r = smallest(/^exambro$/i, 12), ok = false;
@@ -158,7 +153,6 @@
     return ok;
   }
 
-  /* ---------- small floating logo bottom-left + misc ---------- */
   function floaters() {
     var now = Date.now();
     if (now - lastFloat < 700) return;
@@ -178,6 +172,7 @@
       if (!inNav) hide(e);
     }
   }
+
   function misc() {
     var sel = 'a[href*="youtube.com"],a[href*="youtu.be"],a[href*="instagram.com"],a[href*="t.me"],' +
       'a[href*="facebook.com"],a[href*="linkedin.com"],a[href*="wa.me"],a[href*="whatsapp.com"],' +
@@ -188,6 +183,17 @@
     for (var k = 0; k < im.length; k++) if (/^(app )?logo$/i.test(im[k].alt)) hide(im[k]);
     var tx = smallest(/^exambro( premium)?$/i, 20);
     for (var j = 0; j < tx.length; j++) hide(tx[j]);
+    
+    // NEW RULE: Hide ExamBro Solution Logo & Text
+    var sol = smallest(/^ExamBro Solution$/i, 40);
+    for (var s = 0; s < sol.length; s++) {
+        hide(sol[s]);
+        var prev = sol[s].previousElementSibling;
+        if (prev && (prev.tagName === 'IMG' || prev.querySelector('img,svg'))) {
+            hide(prev);
+        }
+    }
+    
     if (/exambro/i.test(document.title)) document.title = 'AAKASH ACADEMY OF SCIENCE';
   }
 

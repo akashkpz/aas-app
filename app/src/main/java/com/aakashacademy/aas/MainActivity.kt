@@ -28,6 +28,11 @@ class MainActivity : Activity() {
         "telegram.org", "facebook.com", "fb.com", "linkedin.com", "wa.me",
         "whatsapp.com", "twitter.com", "x.com"
     )
+    // Injects a CSS rule instantly to hide Exambro images before the page is even visible
+    private val killFlashJs = "document.documentElement.style.visibility='hidden';" +
+            "var s=document.createElement('style');" +
+            "s.innerHTML='img[src*=\"exambro\" i], img[alt*=\"exambro\" i], [class*=\"exambro\" i] { display: none !important; opacity: 0 !important; }';" +
+            "(document.head || document.documentElement).appendChild(s);"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +44,8 @@ class MainActivity : Activity() {
         // --- THE ADVANCED HACK: NATIVE URL MASK ---
         urlMask = View(this)
         urlMask.setBackgroundColor(0xFF202124.toInt()) // Google dark mode background
-        val maskParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180) // 180 pixels tall
+        // Pushed down to 250px to fully cover the URL text
+        val maskParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 250) 
         maskParams.gravity = android.view.Gravity.TOP
         urlMask.visibility = View.GONE
         root.addView(urlMask, maskParams)
@@ -67,13 +73,19 @@ class MainActivity : Activity() {
                 pop.settings.domStorageEnabled = true
                 pop.settings.setSupportMultipleWindows(true)
                 pop.settings.javaScriptCanOpenWindowsAutomatically = true
-                pop.setBackgroundColor(0xFFFFFFFF.toInt())
+                // FIX: Changed popup background to dark to prevent white flash
+                pop.setBackgroundColor(0xFF202124.toInt()) 
                 CookieManager.getInstance().setAcceptThirdPartyCookies(pop, true)
                 
-                // Activate the mask only for the Google Login popup
                 pop.webViewClient = object : WebViewClient() {
                     override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(v, url, favicon)
+                        // FIX: Kill flash in popup too
+                        v?.evaluateJavascript(killFlashJs, null)
+                        h.postDelayed({
+                            v?.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
+                        }, 3500)
+
                         if (url != null && url.contains("accounts.google.com")) {
                             urlMask.visibility = View.VISIBLE
                             urlMask.bringToFront()
@@ -83,6 +95,7 @@ class MainActivity : Activity() {
                     }
                     override fun onPageFinished(v: WebView?, url: String?) {
                         super.onPageFinished(v, url)
+                        v?.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
                         if (url != null && !url.contains("accounts.google.com")) {
                             urlMask.visibility = View.GONE
                         }
@@ -112,7 +125,8 @@ class MainActivity : Activity() {
                 return blocked.any { host == it || host.endsWith(".$it") }
             }
             override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
-                v.evaluateJavascript("document.documentElement.style.visibility='hidden'", null)
+                // FIX: Kill flash in main webview
+                v.evaluateJavascript(killFlashJs, null)
                 h.postDelayed({
                     v.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
                 }, 3500)

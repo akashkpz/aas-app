@@ -184,7 +184,7 @@
     var tx = smallest(/^exambro( premium)?$/i, 20);
     for (var j = 0; j < tx.length; j++) hide(tx[j]);
     
-    // NEW RULE: Hide ExamBro Solution Logo & Text
+    // Hide ExamBro Solution Logo & Text
     var sol = smallest(/^ExamBro Solution$/i, 40);
     for (var s = 0; s < sol.length; s++) {
         hide(sol[s]);
@@ -192,6 +192,12 @@
         if (prev && (prev.tagName === 'IMG' || prev.querySelector('img,svg'))) {
             hide(prev);
         }
+    }
+
+    // NEW: Hide "Where can you find Online Mock Test code?" link
+    var hint = smallest(/Where can you find Online Mock Test code\?/i, 80);
+    for (var h = 0; h < hint.length; h++) {
+        hide(hint[h]);
     }
     
     if (/exambro/i.test(document.title)) document.title = 'AAKASH ACADEMY OF SCIENCE';

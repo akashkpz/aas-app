@@ -20,15 +20,24 @@ class MainActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var root: FrameLayout
     private lateinit var urlMask: View 
+    private lateinit var splashMask: View // NEW: Full screen mask for flashing
     private val popups = ArrayList<WebView>()
     private val h = Handler(Looper.getMainLooper())
     private val startUrl = "https://exambro.app/dashboard"
+    
     private val blocked = listOf(
         "youtube.com", "youtu.be", "instagram.com", "t.me", "telegram.me",
         "telegram.org", "facebook.com", "fb.com", "linkedin.com", "wa.me",
         "whatsapp.com", "twitter.com", "x.com"
     )
-    // Injects a CSS rule instantly to hide Exambro images before the page is even visible
+    
+    // NEW: Specific paths to block as requested
+    private val blockedPaths = listOf(
+        "/student-exam/subscription",
+        "/student-exam/3",
+        "/student-exam/1"
+    )
+
     private val killFlashJs = "document.documentElement.style.visibility='hidden';" +
             "var s=document.createElement('style');" +
             "s.innerHTML='img[src*=\"exambro\" i], img[alt*=\"exambro\" i], [class*=\"exambro\" i] { display: none !important; opacity: 0 !important; }';" +
@@ -41,15 +50,19 @@ class MainActivity : Activity() {
         web = WebView(this)
         root.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         
-        // --- THE ADVANCED HACK: NATIVE URL MASK ---
+        // 1. SPLASH MASK (Hides microsecond flashes on app open/login)
+        splashMask = View(this)
+        splashMask.setBackgroundColor(0xFF0B1220.toInt()) // Match your app background
+        splashMask.visibility = View.VISIBLE // Visible by default
+        root.addView(splashMask, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        // 2. URL MASK (Hides Firebase URL)
         urlMask = View(this)
         urlMask.setBackgroundColor(0xFF202124.toInt()) // Google dark mode background
-        // Pushed down to 250px to fully cover the URL text
-        val maskParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 250) 
+        val maskParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 320) // Pushed down to 320px
         maskParams.gravity = android.view.Gravity.TOP
         urlMask.visibility = View.GONE
         root.addView(urlMask, maskParams)
-        // ------------------------------------------
 
         setContentView(root)
         val js = assets.open("cleanup.js").bufferedReader().use { it.readText() }
@@ -73,22 +86,18 @@ class MainActivity : Activity() {
                 pop.settings.domStorageEnabled = true
                 pop.settings.setSupportMultipleWindows(true)
                 pop.settings.javaScriptCanOpenWindowsAutomatically = true
-                // FIX: Changed popup background to dark to prevent white flash
-                pop.setBackgroundColor(0xFF202124.toInt()) 
+                pop.setBackgroundColor(0xFF202124.toInt())
                 CookieManager.getInstance().setAcceptThirdPartyCookies(pop, true)
                 
                 pop.webViewClient = object : WebViewClient() {
                     override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(v, url, favicon)
-                        // FIX: Kill flash in popup too
                         v?.evaluateJavascript(killFlashJs, null)
-                        h.postDelayed({
-                            v?.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
-                        }, 3500)
-
+                        
                         if (url != null && url.contains("accounts.google.com")) {
                             urlMask.visibility = View.VISIBLE
                             urlMask.bringToFront()
+                            splashMask.visibility = View.GONE
                         } else {
                             urlMask.visibility = View.GONE
                         }
@@ -119,20 +128,31 @@ class MainActivity : Activity() {
 
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
+                val urlStr = r.url.toString()
+                
+                // BLOCK SPECIFIC URLS
+                if (urlStr.contains("exambro.app")) {
+                    for (path in blockedPaths) {
+                        if (urlStr.contains(path)) return true // Block it
+                    }
+                }
+                
                 val scheme = r.url.scheme ?: ""
                 if (scheme != "http" && scheme != "https") return true
                 val host = r.url.host ?: ""
                 return blocked.any { host == it || host.endsWith(".$it") }
             }
             override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
-                // FIX: Kill flash in main webview
+                splashMask.visibility = View.VISIBLE // Show splash on new page load
                 v.evaluateJavascript(killFlashJs, null)
-                h.postDelayed({
-                    v.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
-                }, 3500)
             }
             override fun onPageFinished(v: WebView, url: String?) {
                 v.evaluateJavascript(js, null)
+                // Wait slightly for cleanup.js to hide logos, then reveal
+                h.postDelayed({
+                    splashMask.visibility = View.GONE
+                    v.evaluateJavascript("document.documentElement.style.visibility='visible'", null)
+                }, 150)
             }
         }
         web.loadUrl(startUrl)
